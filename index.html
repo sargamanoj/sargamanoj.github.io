@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -143,7 +143,7 @@ header {
   overflow:hidden;
 }
 .flag-word.done::after, .flag-emoji.done::after {
-  content:'❄';
+  content:'❄️';
   position:absolute;
   left:50%; top:50%;
   transform:translate(-50%,-50%);
@@ -399,7 +399,7 @@ header {
 </div>
 
 <script>
-// ── CONSTANTS ──
+// —— CONSTANTS ——
 const ANGRY_MAP = {
   '😡':'😌','🤬':'😇','💢':'💨','😤':'😮‍💨','😠':'🙂',
   '🖕':'🤚','👊':'🤝','💥':'✨','🔥':'❄️','💀':'😅',
@@ -407,12 +407,25 @@ const ANGRY_MAP = {
   '😒':'😊','🙄':'😌','😑':'😐','😬':'😄'
 };
 
+const ANGRY_EMOJIS = [
+  '😡','🤬','💢','😤','😠','🖕','🔥','💀','☠️','😈','👿','💩','🤮','👊','💥'
+];
+
+const HOSTILE_WORDS_SEVERE = [
+  'kill','die','murder','hate','stupid','idiot','dumb','bastard','asshole','bitch',
+  'fuck','fucking','shit','moron'
+];
+const HOSTILE_WORDS_MILD = [
+  'trash','garbage','loser','suck','sucks','damn','jerk','ugly','shut','angry','rage'
+];
+const HOSTILE_WORD_SET = new Set([...HOSTILE_WORDS_SEVERE, ...HOSTILE_WORDS_MILD]);
+
 // EXT SVG: nozzle tip at approx (160, 192) in 200x380 viewBox → scaled to 72x148
 const EXT_W = 72, EXT_H = 148;
 const NOZZLE_FX = 160/200; // 0.8 of width
 const NOZZLE_FY = 192/380; // 0.505 of height
 
-// ── STATE ──
+// —— STATE ——
 let debounceTimer = null;
 let isProcessing = false;
 let particles = [];
@@ -422,7 +435,7 @@ let extVisible = false;
 let extCurX = -300, extCurY = -300;
 let scanHistory = [];
 
-// ── CANVAS ──
+// —— CANVAS ——
 const canvas = document.getElementById('sprayCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -433,7 +446,7 @@ function resizeCanvas(){
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// ── SPRAY PARTICLES ──
+// —— SPRAY PARTICLES ——
 function spawnSpray(nx, ny, count){
   for(let i=0; i<count; i++){
     const angle = (-170 + Math.random()*50) * Math.PI/180;
@@ -482,7 +495,7 @@ function startLoop(){
   if(!rafId) rafId = requestAnimationFrame(loopParticles);
 }
 
-// ── EXTINGUISHER POSITION ──
+// —— EXTINGUISHER POSITION ——
 const extWrap = document.getElementById('extWrap');
 const extSvgEl = document.getElementById('extSvg');
 
@@ -545,13 +558,13 @@ async function doSprayOnEl(el, ms){
   }
 }
 
-// ── STATUS HELPER ──
+// —— STATUS HELPER ——
 function setStatus(state, msg){
   document.getElementById('sdot').className='sdot '+state;
   document.getElementById('statusMsg').textContent=msg;
 }
 
-// ── INSERT EMOJI into contenteditable ──
+// —— INSERT EMOJI into contenteditable ——
 function insEmoji(e){
   const area = document.getElementById('inputArea');
   area.focus();
@@ -568,12 +581,12 @@ function insEmoji(e){
   onInput();
 }
 
-// ── GET PLAIN TEXT from contenteditable ──
+// —— GET PLAIN TEXT from contenteditable ——
 function getPlainText(){
   return document.getElementById('inputArea').innerText || '';
 }
 
-// ── MAIN: onInput triggers debounced scan ──
+// —— MAIN: onInput triggers debounced scan ——
 function onInput(){
   const text = getPlainText().trim();
   if(!text){
@@ -589,43 +602,50 @@ function onInput(){
 
 document.getElementById('inputArea').addEventListener('input', onInput);
 
-// ── SCAN + EXTINGUISH ──
+// —— LOCAL SCAN (client-only) ——
+function scanText(text){
+  const targets = [];
+  const seenWords = new Set();
+  const seenEmoji = new Set();
+  const lower = text.toLowerCase();
+
+  const wordRe = /[a-z0-9']+/gi;
+  let m;
+  while((m = wordRe.exec(text)) !== null){
+    const raw = m[0];
+    const w = raw.toLowerCase();
+    if(HOSTILE_WORD_SET.has(w) && !seenWords.has(w)){
+      seenWords.add(w);
+      const score = HOSTILE_WORDS_SEVERE.includes(w) ? 75 : 45;
+      targets.push({text: raw, type: 'word', score});
+    }
+  }
+
+  for(const emo of ANGRY_EMOJIS){
+    if(lower.includes(emo) && !seenEmoji.has(emo)){
+      seenEmoji.add(emo);
+      targets.push({text: emo, type: 'emoji', score: 55});
+    }
+  }
+
+  if(targets.length === 0){
+    return {verdict: 'clean', overall_score: 0, targets: []};
+  }
+
+  const avg = Math.round(targets.reduce((s,t)=>s+t.score,0)/targets.length);
+  const overall = Math.min(100, avg + Math.max(0, targets.length - 1) * 5);
+  const verdict = overall >= 65 ? 'toxic' : 'angry';
+  return {verdict, overall_score: overall, targets};
+}
+
+// —— SCAN + EXTINGUISH ——
 async function runScan(text){
   if(isProcessing) return;
   isProcessing = true;
   setStatus('active','⟳ SCANNING...');
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        system:`You are a real-time content moderation AI.
-Analyze the text for offensive words AND angry/hostile emojis.
-
-Return ONLY valid JSON, no markdown:
-{
-  "verdict": "clean"|"toxic"|"angry",
-  "overall_score": 0-100,
-  "targets": [
-    {"text":"exact word or emoji","type":"word"|"emoji","score":0-100}
-  ]
-}
-
-- targets: every offensive/hostile word AND every angry emoji (😡🤬💢😤😠🖕👊💥🔥💀☠️😈👿🤮💩 etc.)
-- score: 1-30 mild, 31-65 moderate, 66-100 severe
-- overall_score: aggregate
-- clean text → targets=[], overall_score=0
-- Return ONLY JSON`,
-        messages:[{role:'user',content:text}]
-      })
-    });
-
-    const data = await res.json();
-    const raw  = data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
-    const result = JSON.parse(raw);
+    const result = scanText(text);
 
     if(result.verdict==='clean' || !result.targets || result.targets.length===0){
       setStatus('clean','✓ ALL CLEAN — EXTINGUISHER STANDING BY');
@@ -635,11 +655,11 @@ Return ONLY valid JSON, no markdown:
       return;
     }
 
-    // ── MARK UP the contenteditable in-place ──
+    // —— MARK UP the contenteditable in-place ——
     markTargetsInDom(result.targets);
     await sleep(150);
 
-    // ── Collect all flagged span elements (not yet done) ──
+    // —— Collect all flagged span elements (not yet done) ——
     const area = document.getElementById('inputArea');
     const flagEls = Array.from(area.querySelectorAll('.flag-word:not(.done), .flag-emoji:not(.done)'));
 
@@ -689,7 +709,7 @@ Return ONLY valid JSON, no markdown:
   isProcessing=false;
 }
 
-// ── MARK TARGETS IN DOM ──
+// —— MARK TARGETS IN DOM ——
 // Wraps offensive words/emojis in spans inside the contenteditable
 function markTargetsInDom(targets){
   const area = document.getElementById('inputArea');
@@ -756,7 +776,7 @@ function markTargetsInDom(targets){
 function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escAttr(s){ return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-// ── HISTORY ──
+// —— HISTORY ——
 function addHistory(text, result){
   scanHistory.unshift({
     text: text.replace(/\n/g,' ').slice(0,55)+(text.length>55?'…':''),
