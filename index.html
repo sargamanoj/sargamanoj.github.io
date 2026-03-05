@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Extinguisher v4</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&family=Syne:wght@400;700&display=swap');
+
+:root {
+  --red: #ff2a00;
+  --orange: #ff6600;
+  --black: #080808;
+  --panel: #0e0e0e;
+  --border: #1c1c1c;
+  --green: #00ff88;
+  --yellow: #ffd500;
+  --blue: #00cfff;
+  --text: #999;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--black);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 16px 50px;
+  overflow-x: hidden;
+  background-image:
+    radial-gradient(ellipse at 10% 5%, rgba(255,42,0,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 95%, rgba(255,100,0,0.03) 0%, transparent 50%);
+}
+
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 4px);
+  pointer-events:none;
+  z-index:9999;
+}
+
+/* HEADER */
+header {
+  text-align:center;
+  margin-bottom:22px;
+  animation:fadeDown .6s ease both;
+}
+.title {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(2rem,5vw,3rem);
+  letter-spacing:10px;
+  color:var(--red);
+  text-shadow:0 0 40px rgba(255,42,0,.5),0 0 80px rgba(255,42,0,.15);
+}
+.subtitle {
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;
+  letter-spacing:4px;
+  color:#252525;
+  margin-top:4px;
+}
+
+/* CARD */
+.card {
+  width:100%;
+  max-width:720px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:20px;
+  animation:fadeUp .6s ease .1s both;
+}
+
+.field-label {
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;
+  letter-spacing:4px;
+  color:#252525;
+  margin-bottom:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.field-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* Editable div acts as input */
+#inputArea {
+  width:100%;
+  min-height:110px;
+  max-height:220px;
+  overflow-y:auto;
+  background:#080808;
+  border:1px solid var(--border);
+  border-radius:5px;
+  color:#ccc;
+  font-family:'Share Tech Mono',monospace;
+  font-size:15px;
+  line-height:2;
+  padding:14px 16px;
+  outline:none;
+  white-space:pre-wrap;
+  word-break:break-word;
+  transition:border-color .3s;
+  cursor:text;
+}
+#inputArea:empty::before {
+  content:attr(data-placeholder);
+  color:#1e1e1e;
+  pointer-events:none;
+}
+#inputArea:focus { border-color:#222; }
+
+/* Flagged tokens inside inputArea */
+.flag-word {
+  display:inline;
+  background:rgba(255,42,0,.18);
+  border-bottom:2px solid var(--red);
+  color:#ff7755;
+  border-radius:2px;
+  padding:0 1px;
+  position:relative;
+}
+.flag-emoji {
+  display:inline;
+  background:rgba(255,102,0,.18);
+  border-bottom:2px solid var(--orange);
+  border-radius:2px;
+  padding:0 1px;
+  position:relative;
+}
+.flag-word.done, .flag-emoji.done {
+  background:linear-gradient(120deg,#d0f0ff,#a8dcf8,#c0eaff);
+  border-bottom:2px solid #50b8f0;
+  color:transparent;
+  border-radius:3px;
+  position:relative;
+  overflow:hidden;
+}
+.flag-word.done::after, .flag-emoji.done::after {
+  content:'❄';
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  color:#60c8ff;
+  font-size:11px;
+  opacity:.9;
+}
+
+/* Status bar */
+.status-bar {
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:9px 14px;
+  background:#080808;
+  border:1px solid var(--border);
+  border-radius:5px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;
+  letter-spacing:2px;
+  min-height:38px;
+}
+.sdot {
+  width:7px; height:7px;
+  border-radius:50%;
+  background:#1a1a1a;
+  flex-shrink:0;
+  transition:background .3s, box-shadow .3s;
+}
+.sdot.idle    { background:#222; }
+.sdot.watch   { background:var(--yellow); box-shadow:0 0 8px var(--yellow); animation:blink 2s infinite; }
+.sdot.active  { background:var(--red);   box-shadow:0 0 12px var(--red);   animation:blink .35s infinite; }
+.sdot.clean   { background:var(--green); box-shadow:0 0 10px var(--green); animation:blink 2.5s infinite; }
+#statusMsg { color:#2a2a2a; }
+
+/* Emoji quick bar */
+.ebar {
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:10px;
+  padding:9px 11px;
+  background:#080808;
+  border:1px solid var(--border);
+  border-radius:5px;
+}
+.ebar-lbl {
+  font-family:'Share Tech Mono',monospace;
+  font-size:8px;
+  letter-spacing:3px;
+  color:#1e1e1e;
+  width:100%;
+  margin-bottom:3px;
+}
+.ebtn {
+  width:30px; height:30px;
+  background:#0e0e0e;
+  border:1px solid var(--border);
+  border-radius:4px;
+  font-size:16px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .15s, background .15s;
+}
+.ebtn:hover { transform:scale(1.2); background:#141414; }
+
+/* FLOATING EXTINGUISHER */
+#extWrap {
+  position:fixed;
+  width:72px;
+  height:148px;
+  pointer-events:none;
+  z-index:2000;
+  display:none;
+  will-change:transform;
+}
+
+/* SPRAY CANVAS */
+#sprayCanvas {
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:1999;
+}
+
+/* HISTORY */
+.history-section {
+  width:100%;
+  max-width:720px;
+  margin-top:14px;
+  animation:fadeUp .6s ease .25s both;
+}
+.hist-hdr {
+  font-family:'Share Tech Mono',monospace;
+  font-size:9px;
+  letter-spacing:4px;
+  color:#1a1a1a;
+  margin-bottom:7px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.hist-hdr::after { content:''; flex:1; height:1px; background:#111; }
+.hist-list { display:flex; flex-direction:column; gap:5px; }
+.hist-item {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-left:3px solid;
+  border-radius:3px;
+  padding:7px 12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:10px;
+  animation:slideIn .3s ease;
+}
+.hist-item.clean  { border-left-color:var(--green); }
+.hist-item.toxic  { border-left-color:var(--red); }
+.hist-item.angry  { border-left-color:var(--orange); }
+.hi-icon { font-size:13px; flex-shrink:0; }
+.hi-txt  { flex:1; color:#2e2e2e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hi-meta { color:#1e1e1e; font-size:9px; flex-shrink:0; }
+
+/* ANIMATIONS */
+@keyframes fadeDown { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeUp   { from{opacity:0;transform:translateY(14px)}  to{opacity:1;transform:translateY(0)} }
+@keyframes slideIn  { from{opacity:0;transform:translateX(-8px)}  to{opacity:1;transform:translateX(0)} }
+@keyframes blink    { 0%,100%{opacity:1} 50%{opacity:.2} }
+@keyframes extPop   { 0%{transform:scale(0) rotate(-20deg);opacity:0} 65%{transform:scale(1.1) rotate(3deg);opacity:1} 100%{transform:scale(1) rotate(0);opacity:1} }
+@keyframes extWobble{ 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+@keyframes extBounce{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">🧯 TEXT EXTINGUISHER</div>
+  <div class="subtitle">AUTO-DETECTION · MOVES TO TARGET · REAL-TIME SUPPRESSION</div>
+</header>
+
+<!-- Floating extinguisher -->
+<div id="extWrap">
+  <svg xmlns="http://www.w3.org/2000/svg" id="extSvg" width="72" height="148" viewBox="0 0 200 380" style="display:block;filter:drop-shadow(0 6px 18px rgba(255,42,0,.4))">
+    <defs>
+      <linearGradient id="bG" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#9e1208"/>
+        <stop offset="22%"  stop-color="#cc1a0a"/>
+        <stop offset="48%"  stop-color="#e8220e"/>
+        <stop offset="68%"  stop-color="#ff3c1f"/>
+        <stop offset="82%"  stop-color="#d41a0c"/>
+        <stop offset="100%" stop-color="#7a0c05"/>
+      </linearGradient>
+      <linearGradient id="cG" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#b0b0b0"/>
+        <stop offset="50%"  stop-color="#eeeeee"/>
+        <stop offset="100%" stop-color="#909090"/>
+      </linearGradient>
+      <linearGradient id="hG" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%"   stop-color="#cccccc"/>
+        <stop offset="100%" stop-color="#777777"/>
+      </linearGradient>
+      <linearGradient id="sG" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="white" stop-opacity="0"/>
+        <stop offset="38%"  stop-color="white" stop-opacity="0.14"/>
+        <stop offset="100%" stop-color="white" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <rect x="62" y="105" width="76" height="230" rx="38" fill="url(#bG)"/>
+    <rect x="62" y="105" width="76" height="230" rx="38" fill="url(#sG)"/>
+    <ellipse cx="100" cy="335" rx="38" ry="10" fill="#6a0a04"/>
+    <ellipse cx="100" cy="105" rx="38" ry="10" fill="#c41b0d"/>
+    <rect x="64" y="198" width="72" height="72" rx="2" fill="white" opacity=".93"/>
+    <text x="100" y="217" font-family="'Bebas Neue',sans-serif" font-size="12" fill="#cc1a0a" text-anchor="middle" letter-spacing="2">FIRE</text>
+    <text x="100" y="231" font-family="'Bebas Neue',sans-serif" font-size="11" fill="#cc1a0a" text-anchor="middle" letter-spacing="2">EXTINGUISHER</text>
+    <rect x="64" y="234" width="72" height="2" fill="#cc1a0a"/>
+    <text x="100" y="249" font-family="monospace" font-size="5.5" fill="#555" text-anchor="middle">AUTO v4.0</text>
+    <rect x="64" y="260" width="72" height="2" fill="#cc1a0a"/>
+    <rect x="64" y="262" width="72" height="8" fill="#ffd500" opacity=".4"/>
+    <rect x="84" y="70" width="32" height="38" rx="8" fill="url(#cG)"/>
+    <ellipse cx="100" cy="70"  rx="16" ry="5" fill="#d0d0d0"/>
+    <ellipse cx="100" cy="108" rx="16" ry="5" fill="#b0b0b0"/>
+    <ellipse cx="100" cy="62" rx="20" ry="9" fill="url(#cG)"/>
+    <ellipse cx="100" cy="57" rx="14" ry="7" fill="#ddd"/>
+    <ellipse cx="100" cy="55" rx="6"  ry="3" fill="none" stroke="#999" stroke-width="2"/>
+    <line x1="100" y1="52" x2="95" y2="38" stroke="#aaa" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="95" cy="37" r="3.5" fill="none" stroke="#aaa" stroke-width="1.5"/>
+    <circle cx="100" cy="140" r="13" fill="#d8d8d8" stroke="#aaa" stroke-width="1.5"/>
+    <circle cx="100" cy="140" r="10" fill="white"/>
+    <path d="M90,140 A10,10 0 0,1 100,130" fill="none" stroke="#e00" stroke-width="3" stroke-linecap="round"/>
+    <path d="M100,130 A10,10 0 0,1 110,140" fill="none" stroke="#0a0" stroke-width="3" stroke-linecap="round"/>
+    <path d="M110,140 A10,10 0 0,1 102,149" fill="none" stroke="#e00" stroke-width="3" stroke-linecap="round"/>
+    <line x1="100" y1="140" x2="107" y2="133" stroke="#111" stroke-width="1.2" stroke-linecap="round"/>
+    <circle cx="100" cy="140" r="1.5" fill="#333"/>
+    <rect x="76" y="52" width="54" height="7" rx="3.5" fill="url(#hG)"/>
+    <path d="M88,59 Q84,71 82,79 L90,79 Q91,71 92,59Z" fill="url(#hG)"/>
+    <path d="M112,59 Q116,71 118,79 L110,79 Q109,71 108,59Z" fill="url(#hG)"/>
+    <rect x="82" y="76" width="36" height="6" rx="3" fill="url(#hG)"/>
+    <rect x="130" y="120" width="11" height="8" rx="3" fill="#444"/>
+    <path d="M135,124 C150,124 155,133 152,147 C149,159 140,163 145,176 C148,184 155,185 158,192" fill="none" stroke="#2a2a2a" stroke-width="7" stroke-linecap="round"/>
+    <path d="M135,123 C149,123 154,132 151,146 C148,158 139,162 144,175 C147,183 154,184 157,191" fill="none" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="148" y="188" width="20" height="10" rx="3" fill="#333" transform="rotate(-20 158 193)"/>
+    <ellipse cx="160" cy="190" rx="5.5" ry="3.5" fill="#555" transform="rotate(-20 160 190)"/>
+    <ellipse cx="100" cy="335" rx="40" ry="11" fill="none" stroke="#7a0c05" stroke-width="3"/>
+  </svg>
+</div>
+
+<canvas id="sprayCanvas"></canvas>
+
+<div class="card">
+  <div class="field-label">// LIVE INPUT — JUST TYPE</div>
+  <div
+    id="inputArea"
+    contenteditable="true"
+    spellcheck="false"
+    data-placeholder="Just start typing... The extinguisher watches automatically 👀 Try typing something angry or insert emojis below."
+  ></div>
+
+  <div class="ebar">
+    <div class="ebar-lbl">// INSERT EMOJI</div>
+    <button class="ebtn" onclick="insEmoji('😡')">😡</button>
+    <button class="ebtn" onclick="insEmoji('🤬')">🤬</button>
+    <button class="ebtn" onclick="insEmoji('💢')">💢</button>
+    <button class="ebtn" onclick="insEmoji('😤')">😤</button>
+    <button class="ebtn" onclick="insEmoji('😠')">😠</button>
+    <button class="ebtn" onclick="insEmoji('🖕')">🖕</button>
+    <button class="ebtn" onclick="insEmoji('🔥')">🔥</button>
+    <button class="ebtn" onclick="insEmoji('💀')">💀</button>
+    <button class="ebtn" onclick="insEmoji('☠️')">☠️</button>
+    <button class="ebtn" onclick="insEmoji('😈')">😈</button>
+    <button class="ebtn" onclick="insEmoji('👿')">👿</button>
+    <button class="ebtn" onclick="insEmoji('💩')">💩</button>
+    <button class="ebtn" onclick="insEmoji('🤮')">🤮</button>
+    <button class="ebtn" onclick="insEmoji('👊')">👊</button>
+    <button class="ebtn" onclick="insEmoji('💥')">💥</button>
+    <button class="ebtn" onclick="insEmoji('😊')">😊</button>
+    <button class="ebtn" onclick="insEmoji('❤️')">❤️</button>
+    <button class="ebtn" onclick="insEmoji('✨')">✨</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="sdot idle" id="sdot"></div>
+    <span id="statusMsg">WATCHING — TYPE ANYTHING TO BEGIN</span>
+  </div>
+</div>
+
+<div class="history-section">
+  <div class="hist-hdr">// INCIDENT LOG</div>
+  <div class="hist-list" id="histList">
+    <div style="color:#181818;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px">No incidents yet.</div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ──
+const ANGRY_MAP = {
+  '😡':'😌','🤬':'😇','💢':'💨','😤':'😮‍💨','😠':'🙂',
+  '🖕':'🤚','👊':'🤝','💥':'✨','🔥':'❄️','💀':'😅',
+  '☠️':'🌸','😈':'😊','👿':'😇','🤮':'😶','💩':'🌺',
+  '😒':'😊','🙄':'😌','😑':'😐','😬':'😄'
+};
+
+// EXT SVG: nozzle tip at approx (160, 192) in 200x380 viewBox → scaled to 72x148
+const EXT_W = 72, EXT_H = 148;
+const NOZZLE_FX = 160/200; // 0.8 of width
+const NOZZLE_FY = 192/380; // 0.505 of height
+
+// ── STATE ──
+let debounceTimer = null;
+let isProcessing = false;
+let particles = [];
+let sprayActive = false;
+let rafId = null;
+let extVisible = false;
+let extCurX = -300, extCurY = -300;
+let scanHistory = [];
+
+// ── CANVAS ──
+const canvas = document.getElementById('sprayCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas(){
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ── SPRAY PARTICLES ──
+function spawnSpray(nx, ny, count){
+  for(let i=0; i<count; i++){
+    const angle = (-170 + Math.random()*50) * Math.PI/180;
+    const speed = 2 + Math.random()*5;
+    particles.push({
+      x:nx, y:ny,
+      vx:Math.cos(angle)*speed,
+      vy:Math.sin(angle)*speed,
+      life:1,
+      decay:0.014 + Math.random()*0.02,
+      r:3.5 + Math.random()*7,
+      hue:185 + Math.random()*35
+    });
+  }
+}
+
+function loopParticles(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  particles = particles.filter(p=>p.life>0);
+
+  if(sprayActive){
+    const {nx,ny} = getNozzlePos();
+    spawnSpray(nx, ny, 10);
+  }
+
+  for(const p of particles){
+    ctx.globalAlpha = p.life * 0.72;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r*p.life, 0, Math.PI*2);
+    ctx.fillStyle = `hsl(${p.hue},78%,${70+Math.random()*20}%)`;
+    ctx.fill();
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.07;
+    p.life-=p.decay; p.r*=0.99;
+  }
+  ctx.globalAlpha = 1;
+
+  if(particles.length>0 || sprayActive){
+    rafId = requestAnimationFrame(loopParticles);
+  } else {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    rafId = null;
+  }
+}
+
+function startLoop(){
+  if(!rafId) rafId = requestAnimationFrame(loopParticles);
+}
+
+// ── EXTINGUISHER POSITION ──
+const extWrap = document.getElementById('extWrap');
+const extSvgEl = document.getElementById('extSvg');
+
+function getNozzlePos(){
+  return {
+    nx: extCurX + EXT_W * NOZZLE_FX,
+    ny: extCurY + EXT_H * NOZZLE_FY
+  };
+}
+
+function placeExt(x,y){
+  extCurX=x; extCurY=y;
+  extWrap.style.left = x+'px';
+  extWrap.style.top  = y+'px';
+}
+
+function showExt(x,y){
+  extWrap.style.display='block';
+  extWrap.style.transition='none';
+  extWrap.style.opacity='1';
+  placeExt(x,y);
+  extSvgEl.style.animation='extPop .5s cubic-bezier(.34,1.56,.64,1) both';
+  extVisible=true;
+}
+
+function hideExt(){
+  extWrap.style.display='none';
+  extVisible=false;
+  sprayActive=false;
+  extSvgEl.style.animation='';
+}
+
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+async function moveExtTo(targetEl){
+  const rect = targetEl.getBoundingClientRect();
+  // Put nozzle tip at center of target
+  const destX = rect.left + rect.width/2  - EXT_W*NOZZLE_FX;
+  const destY = rect.top  + rect.height/2 - EXT_H*NOZZLE_FY;
+
+  extWrap.style.transition = 'left .48s cubic-bezier(.4,0,.2,1), top .48s cubic-bezier(.4,0,.2,1)';
+  extWrap.style.left = destX+'px';
+  extWrap.style.top  = destY+'px';
+  extCurX=destX; extCurY=destY;
+  await sleep(520);
+}
+
+async function doSprayOnEl(el, ms){
+  extSvgEl.style.animation='extWobble .1s linear infinite';
+  sprayActive=true;
+  startLoop();
+  await sleep(ms);
+  sprayActive=false;
+  extSvgEl.style.animation='';
+  // Mark as extinguished
+  el.classList.add('done');
+  if(el.classList.contains('flag-emoji')){
+    const orig = el.dataset.orig;
+    el.textContent = ANGRY_MAP[orig]||'✨';
+  }
+}
+
+// ── STATUS HELPER ──
+function setStatus(state, msg){
+  document.getElementById('sdot').className='sdot '+state;
+  document.getElementById('statusMsg').textContent=msg;
+}
+
+// ── INSERT EMOJI into contenteditable ──
+function insEmoji(e){
+  const area = document.getElementById('inputArea');
+  area.focus();
+  const sel = window.getSelection();
+  if(!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const txt = document.createTextNode(e);
+  range.insertNode(txt);
+  range.setStartAfter(txt);
+  range.setEndAfter(txt);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  onInput();
+}
+
+// ── GET PLAIN TEXT from contenteditable ──
+function getPlainText(){
+  return document.getElementById('inputArea').innerText || '';
+}
+
+// ── MAIN: onInput triggers debounced scan ──
+function onInput(){
+  const text = getPlainText().trim();
+  if(!text){
+    setStatus('idle','WATCHING — TYPE ANYTHING TO BEGIN');
+    hideExt();
+    return;
+  }
+  setStatus('watch','MONITORING...');
+  clearTimeout(debounceTimer);
+  // Wait 900ms after user stops typing before scanning
+  debounceTimer = setTimeout(()=> runScan(text), 900);
+}
+
+document.getElementById('inputArea').addEventListener('input', onInput);
+
+// ── SCAN + EXTINGUISH ──
+async function runScan(text){
+  if(isProcessing) return;
+  isProcessing = true;
+  setStatus('active','⟳ SCANNING...');
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        system:`You are a real-time content moderation AI.
+Analyze the text for offensive words AND angry/hostile emojis.
+
+Return ONLY valid JSON, no markdown:
+{
+  "verdict": "clean"|"toxic"|"angry",
+  "overall_score": 0-100,
+  "targets": [
+    {"text":"exact word or emoji","type":"word"|"emoji","score":0-100}
+  ]
+}
+
+- targets: every offensive/hostile word AND every angry emoji (😡🤬💢😤😠🖕👊💥🔥💀☠️😈👿🤮💩 etc.)
+- score: 1-30 mild, 31-65 moderate, 66-100 severe
+- overall_score: aggregate
+- clean text → targets=[], overall_score=0
+- Return ONLY JSON`,
+        messages:[{role:'user',content:text}]
+      })
+    });
+
+    const data = await res.json();
+    const raw  = data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    const result = JSON.parse(raw);
+
+    if(result.verdict==='clean' || !result.targets || result.targets.length===0){
+      setStatus('clean','✓ ALL CLEAN — EXTINGUISHER STANDING BY');
+      hideExt();
+      addHistory(text, result);
+      isProcessing=false;
+      return;
+    }
+
+    // ── MARK UP the contenteditable in-place ──
+    markTargetsInDom(result.targets);
+    await sleep(150);
+
+    // ── Collect all flagged span elements (not yet done) ──
+    const area = document.getElementById('inputArea');
+    const flagEls = Array.from(area.querySelectorAll('.flag-word:not(.done), .flag-emoji:not(.done)'));
+
+    if(flagEls.length===0){
+      setStatus('clean','✓ CLEAR');
+      isProcessing=false;
+      return;
+    }
+
+    setStatus('active',`🔥 ${flagEls.length} TARGET(S) — DEPLOYING`);
+
+    // Show ext from right side of screen
+    showExt(window.innerWidth+40, window.innerHeight*0.35);
+    await sleep(100);
+
+    for(const el of flagEls){
+      const score = parseInt(el.dataset.score||'50');
+      const sprayMs = 380 + (score/100)*1800; // 380ms–2180ms
+
+      setStatus('active',`⚡ ON TARGET: score ${score}/100`);
+      await moveExtTo(el);
+      await sleep(80);
+      await doSprayOnEl(el, sprayMs);
+      await sleep(180);
+    }
+
+    // Victory
+    extSvgEl.style.animation='extBounce .45s ease-in-out 3';
+    setStatus('clean',`✅ ${flagEls.length} THREAT(S) EXTINGUISHED`);
+    await sleep(1500);
+
+    // Fly off top
+    extWrap.style.transition='left .5s ease-in, top .55s ease-in, opacity .45s ease';
+    extWrap.style.opacity='0';
+    extWrap.style.top='-200px';
+    await sleep(600);
+    hideExt();
+    extWrap.style.opacity='1';
+
+    addHistory(text, result);
+
+  } catch(e){
+    setStatus('idle','⚠ ERROR');
+    console.error(e);
+  }
+
+  isProcessing=false;
+}
+
+// ── MARK TARGETS IN DOM ──
+// Wraps offensive words/emojis in spans inside the contenteditable
+function markTargetsInDom(targets){
+  const area = document.getElementById('inputArea');
+
+  // Save caret position
+  const sel = window.getSelection();
+  let savedRange = null;
+  if(sel && sel.rangeCount) savedRange = sel.getRangeAt(0).cloneRange();
+
+  // Get current plain text
+  const fullText = area.innerText || '';
+
+  // Build list of {start, end, target} from plain text
+  const segments = [];
+  for(const t of targets){
+    if(!t.text) continue;
+    // For emoji: exact match
+    // For word: case-insensitive
+    const flags = t.type==='emoji' ? 'g' : 'gi';
+    const re = new RegExp(t.text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), flags);
+    let m;
+    while((m=re.exec(fullText))!==null){
+      // Don't re-flag already-done spans
+      segments.push({start:m.index, end:m.index+m[0].length, matched:m[0], target:t});
+    }
+  }
+
+  if(segments.length===0) return;
+
+  // Sort, deduplicate overlaps
+  segments.sort((a,b)=>a.start-b.start);
+  const merged=[];
+  for(const s of segments){
+    if(merged.length && s.start < merged[merged.length-1].end) continue;
+    merged.push(s);
+  }
+
+  // Rebuild innerHTML
+  let html='';
+  let cursor=0;
+  for(const seg of merged){
+    html += escHtml(fullText.slice(cursor, seg.start));
+    const score = seg.target.score||50;
+    const cls   = seg.target.type==='emoji' ? 'flag-emoji' : 'flag-word';
+    html += `<span class="${cls}" data-orig="${escAttr(seg.matched)}" data-score="${score}">${escHtml(seg.matched)}</span>`;
+    cursor = seg.end;
+  }
+  html += escHtml(fullText.slice(cursor));
+
+  // Set innerHTML — this wipes the contenteditable and re-renders
+  area.innerHTML = html.replace(/\n/g,'<br>');
+
+  // Try to restore caret to end (simple approach)
+  try {
+    const range = document.createRange();
+    const selN  = window.getSelection();
+    range.selectNodeContents(area);
+    range.collapse(false);
+    selN.removeAllRanges();
+    selN.addRange(range);
+  } catch(e){}
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s){ return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// ── HISTORY ──
+function addHistory(text, result){
+  scanHistory.unshift({
+    text: text.replace(/\n/g,' ').slice(0,55)+(text.length>55?'…':''),
+    verdict: result.verdict,
+    score: result.overall_score||0,
+    count: (result.targets||[]).length
+  });
+  if(scanHistory.length>8) scanHistory.pop();
+  const icons={clean:'✅',toxic:'🧯',angry:'💨'};
+  document.getElementById('histList').innerHTML = scanHistory.map(h=>`
+    <div class="hist-item ${h.verdict}">
+      <span class="hi-icon">${icons[h.verdict]||'🧯'}</span>
+      <span class="hi-txt">${h.txt||h.text}</span>
+      <span class="hi-meta">${h.score}/100 · ${h.count} hit(s)</span>
+    </div>
+  `).join('');
+}
+</script>
+</body>
+</html>
